@@ -29,10 +29,16 @@ c.execute('CREATE TABLE IF NOT EXISTS auta (id INTEGER PRIMARY KEY AUTOINCREMENT
 c.execute('CREATE TABLE IF NOT EXISTS serwisy (id INTEGER PRIMARY KEY AUTOINCREMENT, samochod_id INTEGER, data TEXT, przebieg INTEGER, opis TEXT, koszt REAL)')
 conn.commit(); conn.close()
 
-# Pobranie aktualnego stanu bazy danych
-conn = sqlite3.connect(DB_NAME); df_a = pd.read_sql_query("SELECT id, marka, model, rejestracja FROM auta", conn); conn.close()
+# Funkcja pobierania aut z wymuszonym brakiem pamięci podręcznej chmury
+def pobierz_auta_z_bazy():
+    conn = sqlite3.connect(DB_NAME)
+    df = pd.read_sql_query("SELECT id, marka, model, rejestracja FROM auta", conn)
+    conn.close()
+    return df
 
-# 3. ROZDZIELENIE STRUKTURY ZAKŁADEK MOBILNYCH (NAPRAWA BŁĘDU TYPEERROR)
+df_a = pobierz_auta_z_bazy()
+
+# 3. STRUKTURA ZAKŁADEK MOBILNYCH
 tab1, tab2, tab3 = st.tabs(["📊 Garaż / Historia", "🔧 + Nowy Serwis", "🚘 + Nowe Auto"])
 
 # --- ZAKŁADKA 3: DODAWANIE NOWEGO AUTA ---
@@ -46,7 +52,10 @@ with tab3:
             try:
                 conn = sqlite3.connect(DB_NAME); c = conn.cursor()
                 c.execute("INSERT INTO auta (marka, model, rejestracja) VALUES (?, ?, ?)", (mar.strip(), mod.strip(), rej.strip()))
-                conn.commit(); conn.close(); st.success("Pojazd dodany pomyślnie!"); st.rerun()
+                conn.commit(); conn.close()
+                st.cache_data.clear() # CZYSZCZENIE CACHE - WYMUSZENIE ODŚWIEŻENIA
+                st.success("Pojazd dodany pomyślnie!")
+                st.rerun()
             except: st.error("⚠️ Ten pojazd z tym numerem rejestracyjnym już istnieje!")
         else: st.warning("Wypełnij wszystkie pola!")
 
@@ -58,7 +67,7 @@ if not df_a.empty:
     with tab2:
         st.markdown("### 🔧 Dodaj wpis serwisowy / naprawę")
         sel_s = st.selectbox("Wybierz samochód z floty", df_a['txt'], key="s_box")
-        id_s = int(df_a[df_a['txt'] == sel_s]['id'].values[0])
+        id_s = int(df_a[df_a['txt'] == sel_s]['id'].values)
         dat = st.date_input("Data wykonania naprawy", datetime.now()).strftime("%Y-%m-%d")
         prz = st.number_input("Aktualny przebieg pojazdu (km)", min_value=0, step=1000, key="n_prz")
         kos = st.number_input("Koszt całkowity brutto (zł)", min_value=0.0, step=50.0, key="n_kos")
@@ -67,13 +76,16 @@ if not df_a.empty:
             if opi:
                 conn = sqlite3.connect(DB_NAME); c = conn.cursor()
                 c.execute("INSERT INTO serwisy (samochod_id, data, przebieg, opis, koszt) VALUES (?, ?, ?, ?, ?)", (id_s, dat, prz, opi.strip(), kos))
-                conn.commit(); conn.close(); st.success("Wpis serwisowy zapisany trwale!"); st.rerun()
+                conn.commit(); conn.close()
+                st.cache_data.clear() # CZYSZCZENIE CACHE - WYMUSZENIE ODŚWIEŻENIA
+                st.success("Wpis serwisowy zapisany trwale!")
+                st.rerun()
             else: st.warning("Opis naprawy nie może być pusty!")
             
     # --- ZAKŁADKA 1: PANEL GŁÓWNY I HISTORIA ---
     with tab1:
         sel_h = st.selectbox("Wybierz aktywny pojazd", df_a['txt'], key="h_box")
-        id_h = int(df_a[df_a['txt'] == sel_h]['id'].values[0])
+        id_h = int(df_a[df_a['txt'] == sel_h]['id'].values)
         conn = sqlite3.connect(DB_NAME); df_s = pd.read_sql_query(f"SELECT id, data AS Data, przebieg AS 'Przebieg (km)', opis AS 'Opis prac', koszt AS 'Koszt (zł)' FROM serwisy WHERE samochod_id = {id_h} ORDER BY data DESC", conn); conn.close()
         
         st.markdown(f"<div class='card-cost'><span style='color:#94a3b8; font-size:14px; font-weight:700;'>ŁĄCZNY KOSZT SERWISOWANIA POJAZDU</span><div class='cost-txt'>{df_s['Koszt (zł)'].sum():,.2f} zł</div></div>".replace(",", " "), unsafe_allow_html=True)
@@ -83,11 +95,22 @@ if not df_a.empty:
             st.markdown("##### 🗑️ Usuwanie pojedynczego wpisu")
             del_id = st.selectbox("Wybierz numer ID wiersza z tabeli powyżej", df_s['id'].tolist(), key="del_s_box")
             if st.button("🗑️ USUŃ TEN WPIS SERWISOWY"):
-                conn = sqlite3.connect(DB_NAME); c = conn.cursor(); c.execute("DELETE FROM serwisy WHERE id = ?", (int(del_id),)); conn.commit(); conn.close(); st.success("Wpis usunięty!"); st.rerun()
+                conn = sqlite3.connect(DB_NAME); c = conn.cursor()
+                c.execute("DELETE FROM serwisy WHERE id = ?", (int(del_id),))
+                conn.commit(); conn.close()
+                st.cache_data.clear() # CZYSZCZENIE CACHE - WYMUSZENIE ODŚWIEŻENIA
+                st.success("Wpis usunięty!")
+                st.rerun()
         else: st.info("ℹ️ Brak wpisów serwisowych dla tego pojazdu.")
         st.markdown("<br><br>", unsafe_allow_html=True)
         if st.button("❌ USUŃ TEN SAMOCHÓD CAŁKOWICIE Z GARAŻU"):
-            conn = sqlite3.connect(DB_NAME); c = conn.cursor(); c.execute("DELETE FROM serwisy WHERE samochod_id = ?", (id_h,)); c.execute("DELETE FROM auta WHERE id = ?", (id_h,)); conn.commit(); conn.close(); st.success("Pojazd wymazany z bazy floty BP RENT!"); st.rerun()
+            conn = sqlite3.connect(DB_NAME); c = conn.cursor()
+            c.execute("DELETE FROM serwisy WHERE samochod_id = ?", (id_h,))
+            c.execute("DELETE FROM auta WHERE id = ?", (id_h,))
+            conn.commit(); conn.close()
+            st.cache_data.clear() # CZYSZCZENIE CACHE - WYMUSZENIE ODŚWIEŻENIA
+            st.success("Pojazd wymazany z bazy floty!")
+            st.rerun()
 else:
     with tab1: 
         st.info("📋 Garaż firmy BP RENT jest pusty. Przejdź do zakładki '+ Auto' na górze, aby zarejestrować pierwszy pojazd floty.")
