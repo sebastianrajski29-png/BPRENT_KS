@@ -53,7 +53,7 @@ with tab3:
                 conn = sqlite3.connect(DB_NAME); c = conn.cursor()
                 c.execute("INSERT INTO auta (marka, model, rejestracja) VALUES (?, ?, ?)", (mar.strip(), mod.strip(), rej.strip()))
                 conn.commit(); conn.close()
-                st.cache_data.clear() # CZYSZCZENIE CACHE - WYMUSZENIE ODŚWIEŻENIA
+                st.cache_data.clear()
                 st.success("Pojazd dodany pomyślnie!")
                 st.rerun()
             except: st.error("⚠️ Ten pojazd z tym numerem rejestracyjnym już istnieje!")
@@ -67,7 +67,7 @@ if not df_a.empty:
     with tab2:
         st.markdown("### 🔧 Dodaj wpis serwisowy / naprawę")
         sel_s = st.selectbox("Wybierz samochód z floty", df_a['txt'], key="s_box")
-        id_s = int(df_a[df_a['txt'] == sel_s]['id'].values)
+        id_s = int(df_a[df_a['txt'] == sel_s]['id'].iloc[0]) # BEZBŁĘDNE WYCIĄGANIE ID
         dat = st.date_input("Data wykonania naprawy", datetime.now()).strftime("%Y-%m-%d")
         prz = st.number_input("Aktualny przebieg pojazdu (km)", min_value=0, step=1000, key="n_prz")
         kos = st.number_input("Koszt całkowity brutto (zł)", min_value=0.0, step=50.0, key="n_kos")
@@ -77,7 +77,7 @@ if not df_a.empty:
                 conn = sqlite3.connect(DB_NAME); c = conn.cursor()
                 c.execute("INSERT INTO serwisy (samochod_id, data, przebieg, opis, koszt) VALUES (?, ?, ?, ?, ?)", (id_s, dat, prz, opi.strip(), kos))
                 conn.commit(); conn.close()
-                st.cache_data.clear() # CZYSZCZENIE CACHE - WYMUSZENIE ODŚWIEŻENIA
+                st.cache_data.clear()
                 st.success("Wpis serwisowy zapisany trwale!")
                 st.rerun()
             else: st.warning("Opis naprawy nie może być pusty!")
@@ -85,7 +85,7 @@ if not df_a.empty:
     # --- ZAKŁADKA 1: PANEL GŁÓWNY I HISTORIA ---
     with tab1:
         sel_h = st.selectbox("Wybierz aktywny pojazd", df_a['txt'], key="h_box")
-        id_h = int(df_a[df_a['txt'] == sel_h]['id'].values)
+        id_h = int(df_a[df_a['txt'] == sel_h]['id'].iloc[0]) # BEZBŁĘDNE WYCIĄGANIE ID
         conn = sqlite3.connect(DB_NAME); df_s = pd.read_sql_query(f"SELECT id, data AS Data, przebieg AS 'Przebieg (km)', opis AS 'Opis prac', koszt AS 'Koszt (zł)' FROM serwisy WHERE samochod_id = {id_h} ORDER BY data DESC", conn); conn.close()
         
         st.markdown(f"<div class='card-cost'><span style='color:#94a3b8; font-size:14px; font-weight:700;'>ŁĄCZNY KOSZT SERWISOWANIA POJAZDU</span><div class='cost-txt'>{df_s['Koszt (zł)'].sum():,.2f} zł</div></div>".replace(",", " "), unsafe_allow_html=True)
@@ -98,7 +98,7 @@ if not df_a.empty:
                 conn = sqlite3.connect(DB_NAME); c = conn.cursor()
                 c.execute("DELETE FROM serwisy WHERE id = ?", (int(del_id),))
                 conn.commit(); conn.close()
-                st.cache_data.clear() # CZYSZCZENIE CACHE - WYMUSZENIE ODŚWIEŻENIA
+                st.cache_data.clear()
                 st.success("Wpis usunięty!")
                 st.rerun()
         else: st.info("ℹ️ Brak wpisów serwisowych dla tego pojazdu.")
@@ -108,10 +108,9 @@ if not df_a.empty:
             c.execute("DELETE FROM serwisy WHERE samochod_id = ?", (id_h,))
             c.execute("DELETE FROM auta WHERE id = ?", (id_h,))
             conn.commit(); conn.close()
-            st.cache_data.clear() # CZYSZCZENIE CACHE - WYMUSZENIE ODŚWIEŻENIA
+            st.cache_data.clear()
             st.success("Pojazd wymazany z bazy floty!")
             st.rerun()
 else:
     with tab1: 
         st.info("📋 Garaż firmy BP RENT jest pusty. Przejdź do zakładki '+ Auto' na górze, aby zarejestrować pierwszy pojazd floty.")
-
